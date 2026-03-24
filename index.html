@@ -1,48 +1,44 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meme Box - Rapide & Efficace</title>
-    <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 20px; }
-        .meme-card { cursor: pointer; border: 2px solid transparent; transition: 0.2s; border-radius: 8px; overflow: hidden; background: #333; }
-        .meme-card:hover { border-color: #00ff88; transform: scale(1.05); }
-        img { width: 100%; height: 150px; object-fit: cover; display: block; }
-        .status { position: fixed; bottom: 20px; right: 20px; background: #00ff88; color: black; padding: 10px 20px; border-radius: 5px; display: none; }
-    </style>
-</head>
 <body>
-
-    <h1>🚀 Meme Box</h1>
-    <p>Clique sur un meme pour le copier, puis CTRL+V dans Teams !</p>
-
-    <div class="grid" id="memeGrid">
-        <img class="meme-card" src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJicnZ3ZzR4bmZ4bmZ4bmZ4bmZ4bmZ4bmZ4bmZ4bmZ4bmZ4JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7abKhOpuMcmLjdcI/giphy.gif" alt="Meme">
-        <img class="meme-card" src="https://i.imgflip.com/1bij.jpg" alt="Meme">
-    </div>
-
-    <div id="status" class="status">Copié dans le presse-papier !</div>
+    <h1>🚀 Ma Meme Box Locale</h1>
+    <p>Sélectionne ton dossier de memes pour les afficher ici :</p>
+    
+    <input type="file" id="filePicker" webkitdirectory directory multiple>
+    
+    <div class="grid" id="memeGrid"></div>
+    <div id="status" class="status">Copié !</div>
 
     <script>
-        document.querySelectorAll('.meme-card').forEach(item => {
-            item.addEventListener('click', async () => {
-                try {
-                    const response = await fetch(item.src);
-                    const blob = await response.blob();
-                    const data = [new ClipboardItem({ [blob.type]: blob })];
-                    await navigator.clipboard.write(data);
-                    
-                    // Notification visuelle
-                    const status = document.getElementById('status');
-                    status.style.display = 'block';
-                    setTimeout(() => status.style.display = 'none', 2000);
-                } catch (err) {
-                    alert("Erreur lors de la copie. Vérifie que l'image vient d'un site autorisé (CORS).");
+        const filePicker = document.getElementById('filePicker');
+        const grid = document.getElementById('memeGrid');
+
+        filePicker.addEventListener('change', (e) => {
+            grid.innerHTML = ''; // Vide la grille
+            const files = Array.from(e.target.files);
+
+            files.forEach(file => {
+                // On ne garde que les images
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = document.createElement('img');
+                        img.src = event.target.result;
+                        img.className = 'meme-card';
+                        
+                        // Action au clic pour copier
+                        img.onclick = async () => {
+                            const response = await fetch(img.src);
+                            const blob = await response.blob();
+                            await navigator.clipboard.write([
+                                new ClipboardItem({ [blob.type]: blob })
+                            ]);
+                            document.getElementById('status').style.display = 'block';
+                            setTimeout(() => document.getElementById('status').style.display = 'none', 1500);
+                        };
+                        grid.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
                 }
             });
         });
     </script>
 </body>
-</html>
