@@ -2,23 +2,33 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Meme Box Collaborative</title>
+    <title>Meme Box Collaborative Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; }
-        .header { background: #2a2a2a; padding: 20px; border-radius: 15px; margin-bottom: 30px; border: 1px solid #444; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; margin: 0; }
+        .header { background: #2a2a2a; padding: 20px; border-radius: 15px; margin-bottom: 30px; border: 1px solid #444; display: inline-block; }
+        
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        
+        /* Conteneur du meme */
         .meme-card { 
-            aspect-ratio: 1/1; overflow: hidden; border-radius: 10px; cursor: pointer; 
+            position: relative; aspect-ratio: 1/1; overflow: hidden; border-radius: 12px; cursor: pointer; 
             border: 2px solid transparent; transition: 0.2s; background: #333;
         }
         .meme-card:hover { border-color: #00ff88; transform: scale(1.02); }
         .meme-card img { width: 100%; height: 100%; object-fit: cover; }
-        .upload-btn { 
-            background: #00ff88; color: black; padding: 10px 20px; border-radius: 5px; 
-            cursor: pointer; font-weight: bold; display: inline-block; margin-top: 10px;
+
+        /* Bouton Delete */
+        .delete-btn {
+            position: absolute; bottom: 8px; right: 8px; background: rgba(255, 0, 0, 0.8);
+            color: white; border: none; border-radius: 5px; padding: 5px 8px;
+            cursor: pointer; font-size: 12px; opacity: 0; transition: 0.2s;
         }
-        #status { position: fixed; bottom: 20px; right: 20px; background: #00ff88; color: black; padding: 10px; border-radius: 5px; display: none; }
+        .meme-card:hover .delete-btn { opacity: 1; }
+        .delete-btn:hover { background: red; transform: scale(1.1); }
+
+        .upload-btn { background: #00ff88; color: black; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; display: inline-block; }
+        #status { position: fixed; bottom: 20px; right: 20px; background: #00ff88; color: black; padding: 12px; border-radius: 8px; display: none; font-weight: bold; z-index: 100; }
         input[type="file"] { display: none; }
     </style>
 </head>
@@ -26,20 +36,18 @@
 
     <div class="header">
         <h1>🚀 Meme Box Collective</h1>
-        <p>Tout le monde peut ajouter des memes ici !</p>
         <label class="upload-btn">
             ➕ Ajouter un Meme
             <input type="file" id="uploadInput" accept="image/*">
         </label>
-        <p id="uploadMsg" style="font-size: 0.8em; color: #888;"></p>
+        <p id="uploadMsg" style="font-size: 0.8em; color: #888; margin-top: 10px;"></p>
     </div>
 
     <div class="grid" id="memeGrid"></div>
-    <div id="status">Copié !</div>
+    <div id="status">✅ Copié !</div>
 
     <script>
         // --- CONFIGURATION SUPABASE ---
-        // Remplace par tes vraies infos Supabase :
         const SUPABASE_URL = 'https://lhlybobzysfkgmkygifh.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_BuSFZ_sTsRCErvNGsSqdsQ_ANboA2XX';
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -47,48 +55,72 @@
         const grid = document.getElementById('memeGrid');
         const uploadInput = document.getElementById('uploadInput');
 
-        // 1. Charger les memes existants
+        // 1. Charger et Trier les memes
         async function loadMemes() {
             grid.innerHTML = "Chargement...";
             const { data, error } = await _supabase.storage.from('memes').list();
             
-            if (error) return console.error(error);
-            grid.innerHTML = "";
+            if (error) return console.log(error);
 
+            // TRI ALPHABÉTIQUE par nom de fichier
+            data.sort((a, b) => a.name.localeCompare(b.name));
+
+            grid.innerHTML = "";
             data.forEach(file => {
                 const { data: { publicUrl } } = _supabase.storage.from('memes').getPublicUrl(file.name);
-                createMemeCard(publicUrl);
+                createMemeCard(publicUrl, file.name);
             });
         }
 
-        // 2. Créer une vignette
-        function createMemeCard(url) {
+        // 2. Créer la carte avec le bouton delete
+        function createMemeCard(url, fileName) {
             const div = document.createElement('div');
             div.className = 'meme-card';
-            div.innerHTML = `<img src="${url}">`;
-            div.onclick = () => copyToClipboard(url);
+            
+            // Image cliquable pour copier
+            const img = document.createElement('img');
+            img.src = url;
+            img.onclick = () => copyToClipboard(url);
+            
+            // Bouton supprimer
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-btn';
+            delBtn.innerText = '🗑️';
+            delBtn.onclick = (e) => {
+                e.stopPropagation(); // Empêche de copier l'image quand on clique sur supprimer
+                deleteMeme(fileName);
+            };
+
+            div.appendChild(img);
+            div.appendChild(delBtn);
             grid.appendChild(div);
         }
 
-        // 3. Uploader un nouveau meme
+        // 3. Supprimer un meme
+        async function deleteMeme(fileName) {
+            if (confirm("Supprimer ce chef-d'œuvre ?")) {
+                const { error } = await _supabase.storage.from('memes').remove([fileName]);
+                if (error) alert("Erreur suppression");
+                else loadMemes();
+            }
+        }
+
+        // 4. Uploader (Trié automatiquement au prochain reload)
         uploadInput.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
-            document.getElementById('uploadMsg').innerText = "Envoi en cours...";
-            const fileName = `${Date.now()}_${file.name}`;
+            document.getElementById('uploadMsg').innerText = "Envoi...";
             
-            const { error } = await _supabase.storage.from('memes').upload(fileName, file);
+            // On garde le nom d'origine pour le tri alphabétique
+            const { error } = await _supabase.storage.from('memes').upload(file.name, file);
             
-            if (error) {
-                alert("Erreur upload : " + error.message);
-            } else {
-                document.getElementById('uploadMsg').innerText = "Terminé !";
-                loadMemes(); // Rafraîchit la liste
+            if (error) alert("Erreur : " + error.message);
+            else {
+                document.getElementById('uploadMsg').innerText = "Ajouté !";
+                loadMemes();
             }
         };
 
-        // 4. Copier l'image
         async function copyToClipboard(url) {
             const response = await fetch(url);
             const blob = await response.blob();
