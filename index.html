@@ -2,13 +2,12 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>THE ULTIMATE MEME BANK</title>
+    <title>THE ULTIMATE MEME BOX</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; margin: 0; }
         .header { background: #2a2a2a; padding: 20px; border-radius: 15px; margin-bottom: 30px; border: 1px solid #444; display: inline-block; }
         
-        /* Sections par lettre */
         .letter-section { margin-top: 40px; text-align: left; border-bottom: 2px solid #333; padding-bottom: 10px; }
         .letter-title { color: #00ff88; font-size: 2em; margin-bottom: 15px; text-transform: uppercase; }
 
@@ -19,12 +18,37 @@
             border: 2px solid transparent; transition: 0.2s; background: #333;
         }
         .meme-card:hover { border-color: #00ff88; transform: scale(1.02); }
-        .meme-card img { width: 100%; height: 100%; object-fit: cover; }
+        .meme-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        /* --- NOM DU FICHIER (CORRIGÉ) --- */
+        .meme-name {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff88; /* Couleur verte pour mieux voir le nom */
+            padding: 10px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10; /* S'assure d'être au dessus */
+            pointer-events: none; /* Laisse passer le clic vers l'image dessous */
+            word-break: break-all;
+        }
+
+        /* Apparition au survol du parent (meme-card) */
+        .meme-card:hover .meme-name {
+            opacity: 1;
+        }
 
         .delete-btn {
             position: absolute; bottom: 8px; right: 8px; background: rgba(255, 0, 0, 0.8);
             color: white; border: none; border-radius: 5px; padding: 5px 8px;
             cursor: pointer; font-size: 12px; opacity: 0; transition: 0.2s;
+            z-index: 11;
         }
         .meme-card:hover .delete-btn { opacity: 1; }
         .delete-btn:hover { background: red; transform: scale(1.1); }
@@ -37,16 +61,16 @@
 <body>
 
     <div class="header">
-        <h1>🚀 Meme Box Collective</h1>
+        <h1>THE ULTIMATE MEME BOX</h1>
         <label class="upload-btn">
-            ➕ Ajouter des Memes
+            ➕ Add memes
             <input type="file" id="uploadInput" accept="image/*" multiple>
         </label>
         <p id="uploadMsg" style="font-size: 0.8em; color: #888; margin-top: 10px;"></p>
     </div>
 
     <div id="mainContent"></div>
-    <div id="status">✅ Copié !</div>
+    <div id="status">✅ Copy !</div>
 
     <script>
         const SUPABASE_URL = 'https://lhlybobzysfkgmkygifh.supabase.co';
@@ -59,13 +83,10 @@
         async function loadMemes() {
             mainContent.innerHTML = "Chargement...";
             const { data, error } = await _supabase.storage.from('memes').list();
-            
             if (error) return console.error(error);
 
-            // 1. Tri alphabétique global
             data.sort((a, b) => a.name.localeCompare(b.name));
 
-            // 2. Groupement par lettre initiale
             const groups = {};
             data.forEach(file => {
                 const firstLetter = file.name[0].toUpperCase();
@@ -73,23 +94,17 @@
                 groups[firstLetter].push(file);
             });
 
-            // 3. Rendu par section
             mainContent.innerHTML = "";
             Object.keys(groups).sort().forEach(letter => {
-                // Créer la section
                 const section = document.createElement('div');
                 section.className = 'letter-section';
                 section.innerHTML = `<h2 class="letter-title">${letter}</h2>`;
-                
-                // Créer la grille pour cette lettre
                 const grid = document.createElement('div');
                 grid.className = 'grid';
-                
                 groups[letter].forEach(file => {
                     const { data: { publicUrl } } = _supabase.storage.from('memes').getPublicUrl(file.name);
                     grid.appendChild(createMemeCard(publicUrl, file.name));
                 });
-
                 section.appendChild(grid);
                 mainContent.appendChild(section);
             });
@@ -98,6 +113,11 @@
         function createMemeCard(url, fileName) {
             const div = document.createElement('div');
             div.className = 'meme-card';
+            
+            // Le nom du fichier
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'meme-name';
+            nameDiv.innerText = fileName;
             
             const img = document.createElement('img');
             img.src = url;
@@ -111,6 +131,7 @@
                 deleteMeme(fileName);
             };
 
+            div.appendChild(nameDiv);
             div.appendChild(img);
             div.appendChild(delBtn);
             return div;
@@ -124,24 +145,16 @@
             }
         }
 
-        // --- GESTION DE L'UPLOAD MULTIPLE ---
         uploadInput.onchange = async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
-
             const msg = document.getElementById('uploadMsg');
             let successCount = 0;
-
             for (const file of files) {
                 msg.innerText = `Envoi : ${successCount + 1}/${files.length}...`;
                 const { error } = await _supabase.storage.from('memes').upload(file.name, file);
-                if (error) {
-                    console.error(`Erreur pour ${file.name}:`, error.message);
-                } else {
-                    successCount++;
-                }
+                if (!error) successCount++;
             }
-
             msg.innerText = `${successCount} meme(s) ajouté(s) !`;
             setTimeout(() => { msg.innerText = ""; }, 3000);
             loadMemes();
@@ -156,7 +169,7 @@
                 s.style.display = 'block';
                 setTimeout(() => s.style.display = 'none', 1500);
             } catch (err) {
-                alert("Impossible de copier l'image.");
+                alert("Erreur lors de la copie.");
             }
         }
 
