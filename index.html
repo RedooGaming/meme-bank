@@ -2,158 +2,103 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ma Meme Box Pro v2.0</title>
+    <title>Meme Box Collaborative</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* --- Styles Généraux (Le look) --- */
-        body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            background: #1e1e1e; /* Fond gris sombre */
-            color: #f0f0f0; /* Texte clair */
-            text-align: center;
-            margin: 0;
-            padding: 20px;
+        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; }
+        .header { background: #2a2a2a; padding: 20px; border-radius: 15px; margin-bottom: 30px; border: 1px solid #444; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        .meme-card { 
+            aspect-ratio: 1/1; overflow: hidden; border-radius: 10px; cursor: pointer; 
+            border: 2px solid transparent; transition: 0.2s; background: #333;
         }
-
-        h1 { margin-bottom: 5px; color: #fff; }
-        p.subtitle { color: #aaa; margin-top: 0; margin-bottom: 30px; }
-
-        /* --- Zone d'entrée (Le bouton) --- */
-        .header {
-            margin-bottom: 30px;
-            padding: 20px;
-            background: #2a2a2a;
-            border-radius: 10px;
-            display: inline-block;
+        .meme-card:hover { border-color: #00ff88; transform: scale(1.02); }
+        .meme-card img { width: 100%; height: 100%; object-fit: cover; }
+        .upload-btn { 
+            background: #00ff88; color: black; padding: 10px 20px; border-radius: 5px; 
+            cursor: pointer; font-weight: bold; display: inline-block; margin-top: 10px;
         }
-        input[type="file"] {
-            font-size: 16px;
-            color: #ddd;
-        }
-
-        /* --- La Grille de Memes --- */
-        .grid {
-            display: grid;
-            /* Crée des colonnes automatiques de 180px de large */
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 15px; /* Espace entre les cases */
-            padding: 0;
-            margin-top: 20px;
-        }
-
-        /* --- Les cases de memes (Conteneurs) --- */
-        .meme-container {
-            cursor: pointer;
-            border: 3px solid transparent; /* Contour invisible de base */
-            transition: all 0.2s ease-in-out; /* Animation fluide */
-            border-radius: 12px;
-            overflow: hidden; /* Pour que l'image ne dépasse pas si on arrondit les angles */
-            background: #333;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); /* Légère ombre pour le relief */
-            /* Pour s'assurer que le conteneur est carré (aspect ratio 1:1) */
-            aspect-ratio: 1 / 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* --- L'interaction (Quand on passe la souris) --- */
-        .meme-container:hover {
-            border-color: #00ff88; /* Contour néon vert */
-            transform: scale(1.03); /* Léger zoom */
-            box-shadow: 0 6px 12px rgba(0,255,136,0.3); /* Ombre verte fluo */
-        }
-
-        /* --- Les images à l'intérieur --- */
-        .grid .meme-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* MAGIE : remplit le carré sans déformer l'image */
-            display: block;
-        }
-
-        /* --- La Notification --- */
-        .status {
-            position: fixed;
-            bottom: 25px;
-            right: 25px;
-            background: #00ff88;
-            color: #000;
-            padding: 12px 25px;
-            border-radius: 8px;
-            font-weight: bold;
-            display: none; /* Cachée par défaut */
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
+        #status { position: fixed; bottom: 20px; right: 20px; background: #00ff88; color: black; padding: 10px; border-radius: 5px; display: none; }
+        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h1>🚀 Ma Meme Box</h1>
-        <p class="subtitle">Charge ton dossier et clique pour copier dans Teams (CTRL+V).</p>
-        
-        <label for="filePicker">📂 Charger mon dossier : </label>
-        <input type="file" id="filePicker" webkitdirectory directory multiple>
+        <h1>🚀 Meme Box Collective</h1>
+        <p>Tout le monde peut ajouter des memes ici !</p>
+        <label class="upload-btn">
+            ➕ Ajouter un Meme
+            <input type="file" id="uploadInput" accept="image/*">
+        </label>
+        <p id="uploadMsg" style="font-size: 0.8em; color: #888;"></p>
     </div>
-    
-    <div class="grid" id="memeGrid">
-        </div>
-    
-    <div id="status" class="status">✅ Copié !</div>
+
+    <div class="grid" id="memeGrid"></div>
+    <div id="status">Copié !</div>
 
     <script>
-        const filePicker = document.getElementById('filePicker');
+        // --- CONFIGURATION SUPABASE ---
+        // Remplace par tes vraies infos Supabase :
+        const SUPABASE_URL = 'REMPLACE_PAR_TON_URL';
+        const SUPABASE_KEY = 'REMPLACE_PAR_TA_CLE_ANON';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         const grid = document.getElementById('memeGrid');
-        const status = document.getElementById('status');
+        const uploadInput = document.getElementById('uploadInput');
 
-        filePicker.addEventListener('change', (e) => {
-            grid.innerHTML = ''; // Vide la grille précédente
-            const files = Array.from(e.target.files);
+        // 1. Charger les memes existants
+        async function loadMemes() {
+            grid.innerHTML = "Chargement...";
+            const { data, error } = await _supabase.storage.from('memes').list();
+            
+            if (error) return console.error(error);
+            grid.innerHTML = "";
 
-            files.forEach(file => {
-                // On ne garde que les images (jpg, png, gif, webp, etc.)
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        // 1. Créer le conteneur (pour la bordure et le clic)
-                        const container = document.createElement('div');
-                        container.className = 'meme-container';
-                        
-                        // 2. Créer l'image
-                        const img = document.createElement('img');
-                        img.src = event.target.result;
-                        img.alt = file.name; // Utilise le nom du fichier comme texte alternatif
-                        
-                        // Action au clic sur le conteneur pour copier
-                        container.onclick = async () => {
-                            try {
-                                // On récupère le contenu de l'image
-                                const response = await fetch(img.src);
-                                const blob = await response.blob();
-                                // On copie le blob (binaire de l'image)
-                                await navigator.clipboard.write([
-                                    new ClipboardItem({ [blob.type]: blob })
-                                ]);
-                                
-                                // Afficher la notification de succès
-                                status.style.display = 'block';
-                                setTimeout(() => status.style.display = 'none', 1500);
-                            } catch (err) {
-                                console.error('Erreur lors de la copie:', err);
-                                alert("Erreur : Impossible de copier l'image. Est-ce un format supporté ?");
-                            }
-                        };
-
-                        // 3. Assembler : image dans conteneur, conteneur dans grille
-                        container.appendChild(img);
-                        grid.appendChild(container);
-                    };
-                    reader.readAsDataURL(file);
-                }
+            data.forEach(file => {
+                const { data: { publicUrl } } = _supabase.storage.from('memes').getPublicUrl(file.name);
+                createMemeCard(publicUrl);
             });
-        });
+        }
+
+        // 2. Créer une vignette
+        function createMemeCard(url) {
+            const div = document.createElement('div');
+            div.className = 'meme-card';
+            div.innerHTML = `<img src="${url}">`;
+            div.onclick = () => copyToClipboard(url);
+            grid.appendChild(div);
+        }
+
+        // 3. Uploader un nouveau meme
+        uploadInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadMsg').innerText = "Envoi en cours...";
+            const fileName = `${Date.now()}_${file.name}`;
+            
+            const { error } = await _supabase.storage.from('memes').upload(fileName, file);
+            
+            if (error) {
+                alert("Erreur upload : " + error.message);
+            } else {
+                document.getElementById('uploadMsg').innerText = "Terminé !";
+                loadMemes(); // Rafraîchit la liste
+            }
+        };
+
+        // 4. Copier l'image
+        async function copyToClipboard(url) {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+            const s = document.getElementById('status');
+            s.style.display = 'block';
+            setTimeout(() => s.style.display = 'none', 1500);
+        }
+
+        loadMemes();
     </script>
 </body>
 </html>
