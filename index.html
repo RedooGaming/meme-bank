@@ -20,26 +20,24 @@
         .meme-card:hover { border-color: #00ff88; transform: scale(1.02); }
         .meme-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-        /* --- NOM DU FICHIER (CORRIGÉ) --- */
         .meme-name {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             background: rgba(0, 0, 0, 0.8);
-            color: #00ff88; /* Couleur verte pour mieux voir le nom */
+            color: #00ff88;
             padding: 10px;
             font-size: 12px;
             font-weight: bold;
             text-align: center;
             opacity: 0;
             transition: opacity 0.3s ease;
-            z-index: 10; /* S'assure d'être au dessus */
-            pointer-events: none; /* Laisse passer le clic vers l'image dessous */
+            z-index: 10;
+            pointer-events: none;
             word-break: break-all;
         }
 
-        /* Apparition au survol du parent (meme-card) */
         .meme-card:hover .meme-name {
             opacity: 1;
         }
@@ -114,13 +112,13 @@
             const div = document.createElement('div');
             div.className = 'meme-card';
             
-            // Le nom du fichier
             const nameDiv = document.createElement('div');
             nameDiv.className = 'meme-name';
             nameDiv.innerText = fileName;
             
             const img = document.createElement('img');
             img.src = url;
+            img.crossOrigin = "anonymous"; // Indispensable pour la copie via Canvas
             img.onclick = () => copyToClipboard(url);
             
             const delBtn = document.createElement('button');
@@ -160,48 +158,45 @@
             loadMemes();
         };
 
-       async function copyToClipboard(url) {
+        // --- FONCTION DE COPIE UNIVERSELLE ---
+        async function copyToClipboard(url) {
             try {
                 const response = await fetch(url);
                 const blob = await response.blob();
                 
-                // Si c'est déjà un PNG, on l'envoie direct
+                // Si c'est déjà un PNG, on copie direct
                 if (blob.type === 'image/png') {
                     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 } else {
-                    // Si c'est un JPG/WEBP/etc, on le convertit en PNG "à la volée"
+                    // Sinon on transforme en PNG via un Canvas
                     const img = new Image();
-                    img.crossOrigin = "anonymous"; // Évite les erreurs de sécurité (CORS)
+                    img.crossOrigin = "anonymous";
                     img.src = URL.createObjectURL(blob);
                     
-                    img.onload = async () => {
+                    img.onload = () => {
                         const canvas = document.createElement('canvas');
                         canvas.width = img.width;
                         canvas.height = img.height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
+                        canvas.getContext('2d').drawImage(img, 0, 0);
                         
                         canvas.toBlob(async (pngBlob) => {
                             await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-                            showCopySuccess();
+                            showCopyStatus();
                         }, 'image/png');
                     };
-                    return; // On sort pour laisser l'onload s'occuper du succès
+                    return;
                 }
-                showCopySuccess();
+                showCopyStatus();
             } catch (err) {
                 console.error(err);
-                alert("Erreur lors de la copie. Vérifie que le site est bien en HTTPS.");
+                alert("Erreur lors de la copie. Note: Le site doit être en HTTPS.");
             }
         }
 
-        // Petite fonction pour éviter de répéter le code du message de succès
-        function showCopySuccess() {
+        function showCopyStatus() {
             const s = document.getElementById('status');
             s.style.display = 'block';
             setTimeout(() => s.style.display = 'none', 1500);
-        }
-            }
         }
 
         loadMemes();
