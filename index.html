@@ -160,16 +160,47 @@
             loadMemes();
         };
 
-        async function copyToClipboard(url) {
+       async function copyToClipboard(url) {
             try {
                 const response = await fetch(url);
                 const blob = await response.blob();
-                await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-                const s = document.getElementById('status');
-                s.style.display = 'block';
-                setTimeout(() => s.style.display = 'none', 1500);
+                
+                // Si c'est déjà un PNG, on l'envoie direct
+                if (blob.type === 'image/png') {
+                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                } else {
+                    // Si c'est un JPG/WEBP/etc, on le convertit en PNG "à la volée"
+                    const img = new Image();
+                    img.crossOrigin = "anonymous"; // Évite les erreurs de sécurité (CORS)
+                    img.src = URL.createObjectURL(blob);
+                    
+                    img.onload = async () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        
+                        canvas.toBlob(async (pngBlob) => {
+                            await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+                            showCopySuccess();
+                        }, 'image/png');
+                    };
+                    return; // On sort pour laisser l'onload s'occuper du succès
+                }
+                showCopySuccess();
             } catch (err) {
-                alert("Erreur lors de la copie.");
+                console.error(err);
+                alert("Erreur lors de la copie. Vérifie que le site est bien en HTTPS.");
+            }
+        }
+
+        // Petite fonction pour éviter de répéter le code du message de succès
+        function showCopySuccess() {
+            const s = document.getElementById('status');
+            s.style.display = 'block';
+            setTimeout(() => s.style.display = 'none', 1500);
+        }
             }
         }
 
