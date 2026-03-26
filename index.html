@@ -7,26 +7,138 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; margin: 0; }
         .header { background: #2a2a2a; padding: 20px; border-radius: 15px; margin-bottom: 30px; border: 1px solid #444; display: inline-block; }
-        
         .letter-section { margin-top: 40px; text-align: left; border-bottom: 2px solid #333; padding-bottom: 10px; }
         .letter-title { color: #00ff88; font-size: 2em; margin-bottom: 15px; text-transform: uppercase; }
-
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-        
-        .meme-card { 
-            position: relative; aspect-ratio: 1/1; overflow: hidden; border-radius: 12px; cursor: pointer; 
-            border: 2px solid transparent; transition: 0.2s; background: #333;
-        }
+        .meme-card { position: relative; aspect-ratio: 1/1; overflow: hidden; border-radius: 12px; cursor: pointer; border: 2px solid transparent; transition: 0.2s; background: #333; }
         .meme-card:hover { border-color: #00ff88; transform: scale(1.02); }
         .meme-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .meme-name { position: absolute; top: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.8); color: #00ff88; padding: 10px; font-size: 12px; font-weight: bold; text-align: center; opacity: 0; transition: opacity 0.3s ease; z-index: 10; pointer-events: none; word-break: break-all; }
+        .meme-card:hover .meme-name { opacity: 1; }
+        .delete-btn { position: absolute; bottom: 8px; right: 8px; background: rgba(255, 0, 0, 0.8); color: white; border: none; border-radius: 5px; padding: 5px 8px; cursor: pointer; font-size: 12px; opacity: 0; transition: 0.2s; z-index: 11; }
+        .meme-card:hover .delete-btn { opacity: 1; }
+        .delete-btn:hover { background: red; transform: scale(1.1); }
+        .upload-btn { background: #00ff88; color: black; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; display: inline-block; }
+        #status { position: fixed; bottom: 20px; right: 20px; background: #00ff88; color: black; padding: 12px; border-radius: 8px; display: none; font-weight: bold; z-index: 100; }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
 
-        .meme-name {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ff88;
-            padding: 10px;
-            font-size: 12px;
-            font-weight
+    <div class="header">
+        <h1>THE ULTIMATE MEME BOX</h1>
+        <label class="upload-btn">
+            ➕ Add memes
+            <input type="file" id="uploadInput" accept="image/*" multiple>
+        </label>
+        <p id="uploadMsg" style="font-size: 0.8em; color: #888; margin-top: 10px;"></p>
+    </div>
+
+    <div id="mainContent"></div>
+    <div id="status">✅ Lien copié !</div>
+
+    <script>
+        const SUPABASE_URL = 'https://lhlybobzysfkgmkygifh.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_BuSFZ_sTsRCErvNGsSqdsQ_ANboA2XX';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const mainContent = document.getElementById('mainContent');
+        const uploadInput = document.getElementById('uploadInput');
+
+        async function loadMemes() {
+            mainContent.innerHTML = "Chargement...";
+            try {
+                const { data, error } = await _supabase.storage.from('memes').list();
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    mainContent.innerHTML = "Aucun mème trouvé dans le stockage.";
+                    return;
+                }
+
+                data.sort((a, b) => a.name.localeCompare(b.name));
+                const groups = {};
+                data.forEach(file => {
+                    const firstLetter = file.name[0].toUpperCase();
+                    if (!groups[firstLetter]) groups[firstLetter] = [];
+                    groups[firstLetter].push(file);
+                });
+
+                mainContent.innerHTML = "";
+                Object.keys(groups).sort().forEach(letter => {
+                    const section = document.createElement('div');
+                    section.className = 'letter-section';
+                    section.innerHTML = `<h2 class="letter-title">${letter}</h2>`;
+                    const grid = document.createElement('div');
+                    grid.className = 'grid';
+                    groups[letter].forEach(file => {
+                        const { data: { publicUrl } } = _supabase.storage.from('memes').getPublicUrl(file.name);
+                        grid.appendChild(createMemeCard(publicUrl, file.name));
+                    });
+                    section.appendChild(grid);
+                    mainContent.appendChild(section);
+                });
+            } catch (err) {
+                mainContent.innerHTML = "Erreur de connexion à Supabase : " + err.message;
+                console.error(err);
+            }
+        }
+
+        function createMemeCard(url, fileName) {
+            const div = document.createElement('div');
+            div.className = 'meme-card';
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'meme-name';
+            nameDiv.innerText = fileName;
+            const img = document.createElement('img');
+            img.src = url;
+            img.onclick = () => copyToClipboard(url);
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-btn';
+            delBtn.innerText = '🗑️';
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteMeme(fileName); };
+            div.appendChild(nameDiv);
+            div.appendChild(img);
+            div.appendChild(delBtn);
+            return div;
+        }
+
+        async function copyToClipboard(url) {
+            try {
+                await navigator.clipboard.writeText(url);
+                const s = document.getElementById('status');
+                s.style.display = 'block';
+                setTimeout(() => s.style.display = 'none', 1500);
+            } catch (err) {
+                alert("La copie a échoué. Assurez-vous d'utiliser HTTPS (GitHub Pages).");
+            }
+        }
+
+        // Le reste des fonctions (delete, upload) est identique
+        async function deleteMeme(fileName) {
+            if (confirm("Supprimer ce chef-d'œuvre ?")) {
+                const { error } = await _supabase.storage.from('memes').remove([fileName]);
+                if (error) alert("Erreur suppression");
+                else loadMemes();
+            }
+        }
+
+        uploadInput.onchange = async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            const msg = document.getElementById('uploadMsg');
+            let successCount = 0;
+            for (const file of files) {
+                msg.innerText = `Envoi : ${successCount + 1}/${files.length}...`;
+                const { error } = await _supabase.storage.from('memes').upload(file.name, file);
+                if (!error) successCount++;
+            }
+            msg.innerText = `${successCount} meme(s) ajouté(s) !`;
+            setTimeout(() => { msg.innerText = ""; }, 3000);
+            loadMemes();
+        };
+
+        loadMemes();
+    </script>
+</body>
+</html>
