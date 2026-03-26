@@ -7,52 +7,17 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; margin: 0; }
         .header { background: #2a2a2a; padding: 20px; border-radius: 15px; margin-bottom: 30px; border: 1px solid #444; display: inline-block; }
-        
         .letter-section { margin-top: 40px; text-align: left; border-bottom: 2px solid #333; padding-bottom: 10px; }
         .letter-title { color: #00ff88; font-size: 2em; margin-bottom: 15px; text-transform: uppercase; }
-
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-        
-        .meme-card { 
-            position: relative; aspect-ratio: 1/1; overflow: hidden; border-radius: 12px; cursor: pointer; 
-            border: 2px solid transparent; transition: 0.2s; background: #333;
-        }
+        .meme-card { position: relative; aspect-ratio: 1/1; overflow: hidden; border-radius: 12px; cursor: pointer; border: 2px solid transparent; transition: 0.2s; background: #333; }
         .meme-card:hover { border-color: #00ff88; transform: scale(1.02); }
         .meme-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-        /* --- NOM DU FICHIER (CORRIGÉ) --- */
-        .meme-name {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ff88; /* Couleur verte pour mieux voir le nom */
-            padding: 10px;
-            font-size: 12px;
-            font-weight: bold;
-            text-align: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            z-index: 10; /* S'assure d'être au dessus */
-            pointer-events: none; /* Laisse passer le clic vers l'image dessous */
-            word-break: break-all;
-        }
-
-        /* Apparition au survol du parent (meme-card) */
-        .meme-card:hover .meme-name {
-            opacity: 1;
-        }
-
-        .delete-btn {
-            position: absolute; bottom: 8px; right: 8px; background: rgba(255, 0, 0, 0.8);
-            color: white; border: none; border-radius: 5px; padding: 5px 8px;
-            cursor: pointer; font-size: 12px; opacity: 0; transition: 0.2s;
-            z-index: 11;
-        }
+        .meme-name { position: absolute; top: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.8); color: #00ff88; padding: 10px; font-size: 12px; font-weight: bold; text-align: center; opacity: 0; transition: opacity 0.3s ease; z-index: 10; pointer-events: none; word-break: break-all; }
+        .meme-card:hover .meme-name { opacity: 1; }
+        .delete-btn { position: absolute; bottom: 8px; right: 8px; background: rgba(255, 0, 0, 0.8); color: white; border: none; border-radius: 5px; padding: 5px 8px; cursor: pointer; font-size: 12px; opacity: 0; transition: 0.2s; z-index: 11; }
         .meme-card:hover .delete-btn { opacity: 1; }
         .delete-btn:hover { background: red; transform: scale(1.1); }
-
         .upload-btn { background: #00ff88; color: black; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; display: inline-block; }
         #status { position: fixed; bottom: 20px; right: 20px; background: #00ff88; color: black; padding: 12px; border-radius: 8px; display: none; font-weight: bold; z-index: 100; }
         input[type="file"] { display: none; }
@@ -83,4 +48,33 @@
         async function loadMemes() {
             mainContent.innerHTML = "Chargement...";
             const { data, error } = await _supabase.storage.from('memes').list();
-            if (error) return console.error(error);
+            if (error) {
+                mainContent.innerHTML = "Erreur : " + error.message;
+                return;
+            }
+
+            data.sort((a, b) => a.name.localeCompare(b.name));
+            const groups = {};
+            data.forEach(file => {
+                const firstLetter = file.name[0].toUpperCase();
+                if (!groups[firstLetter]) groups[firstLetter] = [];
+                groups[firstLetter].push(file);
+            });
+
+            mainContent.innerHTML = "";
+            Object.keys(groups).sort().forEach(letter => {
+                const section = document.createElement('div');
+                section.className = 'letter-section';
+                section.innerHTML = `<h2 class="letter-title">${letter}</h2>`;
+                const grid = document.createElement('div');
+                grid.className = 'grid';
+                groups[letter].forEach(file => {
+                    const { data: { publicUrl } } = _supabase.storage.from('memes').getPublicUrl(file.name);
+                    grid.appendChild(createMemeCard(publicUrl, file.name));
+                });
+                section.appendChild(grid);
+                mainContent.appendChild(section);
+            });
+        }
+
+        function createMeme
